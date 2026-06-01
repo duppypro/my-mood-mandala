@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/strokes/{strokeId} {
+      // Anyone can read strokes (needed for the live broadcast sharing)
+      // There's no PII here, just vector coordinates for the mandala.
+      allow read: if true;
+      
+      // User must own the UID path to write
+      allow create, update: if request.auth != null 
+                            && request.auth.uid == userId 
+                            && isValidStroke(request.resource.data);
+                            
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    function isValidStroke(data) {
+      return data.keys().hasAll(['id', 'timestamp', 'color', 'points'])
+          && data.id is string && data.id.size() <= 128
+          && data.timestamp is number
+          && data.color is string && data.color.size() <= 12
+          && data.points is list && data.points.size() <= 5000
+          && (data.points.size() > 0 ? (data.points[0] is list && data.points[0].size() == 2) : true);
+    }
+  }
+}

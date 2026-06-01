@@ -1,0 +1,15 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        "strokes": {
+          ".read": true,
+          ".write": "auth != null && auth.uid === $uid",
+          "$strokeId": {
+             ".validate": "newData.hasChildren(['id', 'timestamp', 'color', 'points']) && newData.child('id').isString() && newData.child('timestamp').isNumber()"
+          }
+        }
+      }
+    }
+  }
+}

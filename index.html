@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>My Mood Mandala</title>
+  </head>
+  <body>
+    <div id="app" class="flex flex-col h-[100dvh] w-full bg-[#F4F1EA] text-[#3D3A33] overflow-hidden font-serif relative">
+      <!-- Header Navigation -->
+      <header class="flex justify-between items-center px-6 md:px-12 py-6 md:py-8 z-10 relative pointer-events-none">
+        <div class="flex flex-col pointer-events-auto">
+          <h1 class="text-2xl md:text-3xl font-light tracking-widest text-[#2C2A24] uppercase">My Mood Mandala</h1>
+          <p class="text-[10px] md:text-xs italic opacity-60 tracking-tighter">The Meditation on Impermanence</p>
+        </div>
+        <div class="flex items-center space-x-4 md:space-x-6 pointer-events-auto">
+          <div id="live-indicator" class="flex items-center space-x-2 text-[8px] md:text-[10px] uppercase tracking-widest transition-opacity duration-500 opacity-0">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-green-600"></span>
+            </span>
+            <span class="hidden md:inline">Connected to RTDB</span>
+            <span class="md:hidden">Live</span>
+          </div>
+          <button id="btn-auth" class="px-4 py-2 md:px-6 md:py-2 border border-[#3D3A33]/20 rounded-full text-[8px] md:text-[10px] uppercase tracking-widest hover:bg-[#3D3A33] hover:text-[#F4F1EA] transition-colors duration-300">Sign in with Google</button>
+        </div>
+      </header>
+
+      <!-- Mandala Stage Navigation -->
+      <div id="mandala-selectors" class="absolute left-6 top-28 md:left-12 md:top-36 flex flex-col space-y-3 z-20 pointer-events-auto font-serif">
+        <button data-target="now" class="selector-btn group flex items-center text-left transition-all">
+          <div class="active-indicator w-1 h-1 rounded-full bg-[#3D3A33] mr-3 transition-opacity"></div>
+          <span class="text-xl md:text-3xl tracking-widest opacity-100 font-normal transition-all group-hover:opacity-100 uppercase">My Now</span>
+        </button>
+        <button data-target="day" class="selector-btn group flex items-center text-left transition-all">
+          <div class="active-indicator w-1 h-1 rounded-full bg-[#3D3A33] mr-3 opacity-0 transition-opacity"></div>
+          <span class="text-xl md:text-3xl tracking-widest opacity-30 font-light transition-all group-hover:opacity-100 uppercase">My Day</span>
+        </button>
+        <button data-target="week" class="selector-btn group flex items-center text-left transition-all">
+          <div class="active-indicator w-1 h-1 rounded-full bg-[#3D3A33] mr-3 opacity-0 transition-opacity"></div>
+          <span class="text-xl md:text-3xl tracking-widest opacity-30 font-light transition-all group-hover:opacity-100 uppercase">My Week</span>
+        </button>
+      </div>
+
+      <!-- Main Mandala Workspace -->
+      <main id="canvas-container" class="relative flex-1 flex items-center justify-center">
+        <!-- Subtle Sand Grain Texture Overlay -->
+        <div class="absolute inset-0 pointer-events-none opacity-[0.03] mix-blend-multiply bg-[url('https://www.transparenttextures.com/patterns/sandpaper.png')] z-50"></div>
+        
+        <!-- Keyboard Shortcuts Overlay (Right) -->
+        <div class="hidden lg:flex absolute right-12 top-1/2 -translate-y-1/2 flex-col space-y-4 opacity-40 text-[10px] tracking-widest uppercase items-end pointer-events-none z-10 text-right">
+          <div class="flex flex-col">
+            <span class="font-bold">W A S D</span>
+            <span>Pan Canvas</span>
+          </div>
+          <div class="flex flex-col">
+            <span class="font-bold">Q E</span>
+            <span>Rotate View</span>
+          </div>
+          <div class="flex flex-col">
+            <span class="font-bold">Scroll</span>
+            <span>Zoom</span>
+          </div>
+        </div>
+
+        <!-- The Mandala Workspace Canvas -->
+        <canvas id="mandala-canvas" class="absolute inset-0 w-full h-full touch-none z-10"></canvas>
+      </main>
+
+      <!-- Footer Controls -->
+      <footer class="px-4 md:px-12 py-6 md:py-10 flex flex-col md:flex-row justify-between items-center md:items-end z-10 relative pointer-events-none gap-y-4">
+        <!-- Color Palette -->
+        <div id="swatches" class="flex items-center space-x-2 md:space-x-4 bg-white/40 backdrop-blur-sm p-3 md:p-4 rounded-3xl border border-white/40 shadow-sm pointer-events-auto">
+          <button data-color="#0047AB" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#0047AB] border-2 border-white shadow-sm ring-2 ring-[#3D3A33] ring-offset-[#F4F1EA] ring-offset-2 transition-all cursor-pointer"></button>
+          <button data-color="#FFFFFF" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#FFFFFF] border-2 border-[#3D3A33]/10 shadow-sm ring-2 ring-transparent ring-offset-[#F4F1EA] ring-offset-2 transition-all cursor-pointer"></button>
+          <button data-color="#D32F2F" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#D32F2F] border-2 border-white shadow-sm ring-2 ring-transparent ring-offset-[#F4F1EA] ring-offset-2 transition-all cursor-pointer"></button>
+          <button data-color="#2E7D32" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#2E7D32] border-2 border-white shadow-sm ring-2 ring-transparent ring-offset-[#F4F1EA] ring-offset-2 transition-all cursor-pointer"></button>
+          <button data-color="#F9A825" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#F9A825] border-2 border-white shadow-sm ring-2 ring-transparent ring-offset-[#F4F1EA] ring-offset-2 transition-all cursor-pointer"></button>
+        </div>
+
+        <!-- Transformation & Mode Controls -->
+        <div class="flex space-x-3 md:space-x-6 pointer-events-auto items-center">
+          <div class="flex bg-white/40 backdrop-blur-sm rounded-full p-1 border border-white/40 shadow-sm">
+            <button id="btn-rotate-ccw" class="p-2 md:p-3 hover:bg-[#3D3A33]/5 rounded-full transition-colors" title="Rotate Left (Q)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
+            </button>
+            <button id="btn-rotate-cw" class="p-2 md:p-3 hover:bg-[#3D3A33]/5 rounded-full transition-colors" title="Rotate Right (E)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>
+            </button>
+          </div>
+          
+          <div class="flex items-center space-x-3 bg-white/40 backdrop-blur-sm px-4 py-2 md:px-6 md:py-3 rounded-full border border-white/40 shadow-sm">
+            <span class="text-[8px] md:text-[10px] uppercase tracking-widest opacity-60">Test Mode</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="test-mode-toggle" class="sr-only peer">
+              <div class="w-8 h-4 md:w-10 md:h-5 bg-[#3D3A33]/20 rounded-full peer peer-checked:bg-[#3D3A33] transition-colors duration-300 shadow-inner overflow-hidden">
+                <div class="absolute inset-y-0 left-0 flex items-center justify-center transition-transform duration-300 peer-checked:translate-x-4 md:peer-checked:translate-x-5 px-1">
+                   <div class="w-3 h-3 md:w-3.5 md:h-3.5 bg-[#F4F1EA] rounded-full shadow"></div>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <button id="btn-share" class="flex items-center space-x-2 bg-[#3D3A33] text-[#F4F1EA] px-4 py-2 md:px-8 md:py-3 rounded-full text-[8px] md:text-[10px] uppercase tracking-widest font-bold hover:bg-[#2C2A24] transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden md:block"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            <span>Share</span>
+          </button>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+

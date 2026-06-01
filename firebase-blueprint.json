@@ -1,0 +1,25 @@
+{
+  "entities": {
+    "Stroke": {
+      "title": "Stroke",
+      "description": "A single drawing stroke consisting of multiple 2D points.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "color": { "type": "string" },
+        "points": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "number" } }
+        }
+      },
+      "required": ["id", "timestamp", "color", "points"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/strokes": {
+      "schema": { "$ref": "#/entities/Stroke" },
+      "description": "The strokes drawn by a specific user."
+    }
+  }
+}
