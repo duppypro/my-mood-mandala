@@ -19,9 +19,11 @@ service cloud.firestore {
     }
 
     function isValidStroke(data) {
-      return data.keys().hasAll(['id', 'timestamp', 'color', 'points'])
+      return data.keys().hasOnly(['id', 'timestamp', 'color', 'points'])
           && data.id is string && data.id.size() <= 128
           && data.timestamp is number
+          && data.timestamp >= request.time.toMillis() - 60000
+          && data.timestamp <= request.time.toMillis() + 60000
           && data.color is string && data.color.size() <= 12
           && data.points is list && data.points.size() <= 5000
           && (data.points.size() > 0 ? (data.points[0] is list && data.points[0].size() == 2) : true);
