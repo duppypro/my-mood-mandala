@@ -59,18 +59,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); // Use specified DB
 const auth = getAuth();
 
-// Test Connection per Firebase Skill instructions
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
-  }
-}
-testConnection();
-
 // --- Firestore Error Handling (Skill Requirement) ---
 enum OperationType {
   CREATE = 'create',
@@ -116,7 +104,10 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  // Do not throw to avoid crashing the live viewer / app.
+  if (operationType === OperationType.GET && errInfo.error.includes("Missing or insufficient permissions")) {
+    console.warn("Could not retrieve live stream. Please verify the URL or permissions.");
+  }
 }
 
 // --- Application State ---
@@ -126,13 +117,14 @@ let canvasHeight = 0;
 let isTestMode = false;
 let strokes: Map<string, Stroke> = new Map();
 let currentStroke: Stroke | null = null;
-let currentColor = '#0047AB';
+let currentColor = '#000000';
+let activeSymmetry: '6-fold' | '12-kaleido' = '12-kaleido';
 
 // Three Spatial Mandalas defined in absolute World Coordinates
 // Center is (0, y). Radius is always 450 world units.
 const TABLE_RADIUS = 450;
 const MANDALAS = [
-  { id: 'now', y: 0, maxAge: 6 * 60 * 1000 },                 // 6 Minutes
+  { id: 'now', y: 0, maxAge: 2 * 60 * 1000 },                 // 2 Minutes
   { id: 'day', y: 1500, maxAge: 24 * 60 * 60 * 1000 },        // 24 Hours
   { id: 'week', y: 3000, maxAge: 7 * 24 * 60 * 60 * 1000 }    // 7 Days
 ];
@@ -167,6 +159,42 @@ const container = document.getElementById('canvas-container')!;
 const btnAuth = document.getElementById('btn-auth') as HTMLButtonElement;
 const btnShare = document.getElementById('btn-share') as HTMLButtonElement;
 const liveIndicator = document.getElementById('live-indicator')!;
+const symmetrySelector = document.getElementById('symmetry-selector');
+
+function updateSymmetryUI() {
+  document.querySelectorAll('.symmetry-btn').forEach(btn => {
+    if ((btn as HTMLElement).dataset.symmetry === activeSymmetry) {
+      btn.classList.replace('ring-transparent', 'ring-[#F4F1EA]');
+      btn.classList.replace('opacity-50', 'opacity-100');
+      btn.classList.add('bg-[#F4F1EA]/10');
+      btn.classList.remove('hover:bg-[#F4F1EA]/5');
+    } else {
+      btn.classList.replace('ring-[#F4F1EA]', 'ring-transparent');
+      btn.classList.replace('opacity-100', 'opacity-50');
+      btn.classList.remove('bg-[#F4F1EA]/10');
+      btn.classList.add('hover:bg-[#F4F1EA]/5');
+    }
+  });
+}
+
+// Pick up initial guest symmetry
+const guestSym = localStorage.getItem('symmetry_guest');
+if (guestSym === '6-fold' || guestSym === '12-kaleido') {
+  activeSymmetry = guestSym;
+}
+updateSymmetryUI();
+
+document.querySelectorAll('.symmetry-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    activeSymmetry = (e.currentTarget as HTMLElement).dataset.symmetry as any;
+    updateSymmetryUI();
+    if (currentUser) {
+      localStorage.setItem(`symmetry_${currentUser.uid}`, activeSymmetry);
+    } else {
+      localStorage.setItem(`symmetry_guest`, activeSymmetry);
+    }
+  });
+});
 
 // Navigate to Mandalas from UI
 document.querySelectorAll('.selector-btn').forEach(btn => {
@@ -205,6 +233,11 @@ resizeObserver.observe(container);
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
   if (user) {
+    const saved = localStorage.getItem(`symmetry_${user.uid}`);
+    if (saved === '6-fold' || saved === '12-kaleido') {
+      activeSymmetry = saved;
+      updateSymmetryUI();
+    }
     btnAuth.textContent = 'Sign Out';
     if (!isViewOnly) {
       viewUid = user.uid;
@@ -230,14 +263,26 @@ btnAuth.addEventListener('click', () => {
 });
 
 btnShare.addEventListener('click', async () => {
-  if (!currentUser) return alert('You must be signed in to share.');
+  let urlStr = window.location.href;
   const url = new URL(window.location.href);
-  url.searchParams.set('uid', currentUser.uid);
+  if (isViewOnly && viewUid) {
+    url.searchParams.set('uid', viewUid);
+    urlStr = url.toString();
+  } else if (currentUser) {
+    url.searchParams.set('uid', currentUser.uid);
+    urlStr = url.toString();
+  }
   try {
-    await navigator.clipboard.writeText(url.toString());
-    const originalText = btnShare.innerText;
-    btnShare.innerText = 'Copied!';
-    setTimeout(() => btnShare.innerText = originalText, 2000);
+    await navigator.clipboard.writeText(urlStr);
+    
+    // Show toast and fade out
+    const toast = d3.select('#share-toast');
+    toast.style('opacity', 1)
+         .transition()
+         .duration(1333)
+         .ease(d3.easeCubicIn)
+         .style('opacity', 0);
+
   } catch(e) {
     console.error('Clipboard copy failed:', e);
   }
@@ -407,7 +452,35 @@ async function deleteStroke(strokeId: string) {
 }
 
 // --- Keyboard & UI Controls ---
+let fPressCount = 0;
+let fPressTimeout: any = null;
+
+let tapCount = 0;
+let tapTimeout: any = null;
+
+document.addEventListener('touchstart', (e) => {
+  tapCount++;
+  if (tapCount === 3) {
+    isTestMode = !isTestMode;
+    tapCount = 0;
+    // Show a little visual feedback for the user maybe? Not strictly required, but nice.
+  }
+  clearTimeout(tapTimeout);
+  tapTimeout = setTimeout(() => { tapCount = 0; }, 500);
+});
+
 document.addEventListener('keydown', (e) => {
+  // Check for 'f' double tap for test mode toggle
+  if (e.key === 'f' && document.activeElement?.tagName !== 'INPUT') {
+    fPressCount++;
+    if (fPressCount === 2) {
+      isTestMode = !isTestMode;
+      fPressCount = 0;
+    }
+    clearTimeout(fPressTimeout);
+    fPressTimeout = setTimeout(() => { fPressCount = 0; }, 500);
+  }
+
   if (['w', 'a', 's', 'd', 'q', 'e'].includes(e.key.toLowerCase())) {
     // Only apply if we have focus outside inputs
     if (document.activeElement?.tagName === 'INPUT') return;
@@ -434,28 +507,19 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-document.getElementById('btn-rotate-ccw')?.addEventListener('click', () => {
-  customRotation -= 15 * (Math.PI / 180);
-});
-document.getElementById('btn-rotate-cw')?.addEventListener('click', () => {
-  customRotation += 15 * (Math.PI / 180);
-});
-
 document.querySelectorAll('#swatches button').forEach(btn => {
   btn.addEventListener('click', (e) => {
     const b = e.target as HTMLButtonElement;
     currentColor = b.dataset.color || '#0047AB';
     // Remove glow from others
-    document.querySelectorAll('#swatches button').forEach(bc => bc.classList.replace('ring-[#3D3A33]', 'ring-transparent'));
-    b.classList.replace('ring-transparent', 'ring-[#3D3A33]');
+    document.querySelectorAll('#swatches button').forEach(bc => bc.classList.replace('ring-[#F4F1EA]', 'ring-transparent'));
+    b.classList.replace('ring-transparent', 'ring-[#F4F1EA]');
   });
 });
 // Set default active
-document.querySelector('#swatches button')?.classList.replace('ring-transparent', 'ring-[#3D3A33]');
+document.querySelector('#swatches button')?.classList.replace('ring-transparent', 'ring-[#F4F1EA]');
 
-document.getElementById('test-mode-toggle')?.addEventListener('change', (e) => {
-  isTestMode = (e.target as HTMLInputElement).checked;
-});
+    // Removed #test-mode-toggle listener
 
 // --- Render Loop (Canvas & Expiration Physics) ---
 function drawMandalaTable(cx: number, cy: number) {
@@ -468,11 +532,11 @@ function drawMandalaTable(cx: number, cy: number) {
   ctx.beginPath();
   ctx.arc(cx, cy, TABLE_RADIUS, 0, Math.PI * 2);
   
-  ctx.fillStyle = '#F0EDE4';
+  ctx.fillStyle = '#3E2741';
   ctx.fill();
 
   // Add a very subtle inner ridge border to the table
-  ctx.strokeStyle = 'rgba(61, 58, 51, 0.05)';
+  ctx.strokeStyle = 'rgba(244, 241, 234, 0.1)';
   ctx.lineWidth = 1 / d3Transform.k; // Ensure 1 physical pixel width
   ctx.stroke();
 
@@ -484,22 +548,25 @@ function drawMandalaTable(cx: number, cy: number) {
   for (let s = 0; s <= gradSteps; s++) {
     const t = s / gradSteps;
     const alpha = 1.0 - d3.easeCubicIn(t);
-    gridGrad.addColorStop(t, `rgba(61, 58, 51, ${alpha * 0.2})`);
+    gridGrad.addColorStop(t, `rgba(244, 241, 234, ${alpha * 0.15})`);
   }
   ctx.strokeStyle = gridGrad;
-  ctx.fillStyle = gridGrad;
 
-  ctx.beginPath();
-  ctx.arc(cx, cy, 3 / d3Transform.k, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const ang = i * (Math.PI / 3);
+  const markFolds = activeSymmetry === '12-kaleido' ? 12 : 6;
+  for (let i = 0; i < markFolds; i++) {
+    ctx.beginPath();
+    // Dashed for odd lines in 12-fold, otherwise solid
+    if (activeSymmetry === '12-kaleido' && i % 2 === 1) {
+      ctx.setLineDash([5 / d3Transform.k, 5 / d3Transform.k]);
+    } else {
+      ctx.setLineDash([]);
+    }
+    const ang = i * (Math.PI * 2 / markFolds);
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(ang) * TABLE_RADIUS, cy + Math.sin(ang) * TABLE_RADIUS);
+    ctx.stroke();
   }
-  ctx.stroke();
+  ctx.setLineDash([]); // Reset
   ctx.restore();
   
   ctx.restore();
@@ -572,10 +639,13 @@ function render() {
       if (stroke.points.length < 2) {
          if (stroke.points.length === 1) {
             const p = stroke.points[0];
-            for (let k = 0; k < 6; k++) {
-                const currentAngle = k * (Math.PI / 3);
-                const dx = p[0] - 0;
-                const dy = p[1] - m.y;
+            const foldCount = activeSymmetry === '12-kaleido' ? 12 : 6;
+            for (let k = 0; k < foldCount; k++) {
+                const currentAngle = k * (Math.PI * 2 / foldCount);
+                let dx = p[0] - 0;
+                let dy = p[1] - m.y;
+                if (activeSymmetry === '12-kaleido' && k % 2 === 1) dy = -dy;
+
                 const rx = dx * Math.cos(currentAngle) - dy * Math.sin(currentAngle) + 0;
                 const ry = dx * Math.sin(currentAngle) + dy * Math.cos(currentAngle) + m.y;
                 
@@ -599,8 +669,9 @@ function render() {
           
           const steps = Math.max(1, Math.floor(dist / 1.5));
           
-          for (let k=0; k<6; k++) {
-              const currentAngle = k * (Math.PI / 3);
+          const foldCount = activeSymmetry === '12-kaleido' ? 12 : 6;
+          for (let k=0; k<foldCount; k++) {
+              const currentAngle = k * (Math.PI * 2 / foldCount);
 
               let jx1 = 0, jy1 = 0, jx2 = 0, jy2 = 0;
               if (k > 0) {
@@ -613,13 +684,19 @@ function render() {
                   jy2 = (pseudoRandom(s2 + 1) - 0.5) * 5;
               }
 
-              const dx1 = p1[0] - 0 + jx1;
-              const dy1 = p1[1] - m.y + jy1;
+              let dx1 = p1[0] - 0 + jx1;
+              let dy1 = p1[1] - m.y + jy1;
+              let dx2 = p2[0] - 0 + jx2;
+              let dy2 = p2[1] - m.y + jy2;
+              
+              if (activeSymmetry === '12-kaleido' && k % 2 === 1) {
+                  dy1 = -dy1;
+                  dy2 = -dy2;
+              }
+
               const rx1 = dx1 * Math.cos(currentAngle) - dy1 * Math.sin(currentAngle) + 0;
               const ry1 = dx1 * Math.sin(currentAngle) + dy1 * Math.cos(currentAngle) + m.y;
 
-              const dx2 = p2[0] - 0 + jx2;
-              const dy2 = p2[1] - m.y + jy2;
               const rx2 = dx2 * Math.cos(currentAngle) - dy2 * Math.sin(currentAngle) + 0;
               const ry2 = dx2 * Math.sin(currentAngle) + dy2 * Math.cos(currentAngle) + m.y;
               
