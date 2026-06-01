@@ -117,7 +117,7 @@ let canvasHeight = 0;
 let isTestMode = false;
 let strokes: Map<string, Stroke> = new Map();
 let currentStroke: Stroke | null = null;
-let currentColor = '#000000';
+let currentColor = '#0047AB';
 let activeSymmetry: '6-fold' | '12-kaleido' = '12-kaleido';
 
 // Three Spatial Mandalas defined in absolute World Coordinates
@@ -516,8 +516,8 @@ document.querySelectorAll('#swatches button').forEach(btn => {
     b.classList.replace('ring-transparent', 'ring-[#F4F1EA]');
   });
 });
-// Set default active
-document.querySelector('#swatches button')?.classList.replace('ring-transparent', 'ring-[#F4F1EA]');
+// Set default active to blue
+document.querySelector('#swatches button[data-color="#0047AB"]')?.classList.replace('ring-transparent', 'ring-[#F4F1EA]');
 
     // Removed #test-mode-toggle listener
 
@@ -532,7 +532,7 @@ function drawMandalaTable(cx: number, cy: number) {
   ctx.beginPath();
   ctx.arc(cx, cy, TABLE_RADIUS, 0, Math.PI * 2);
   
-  ctx.fillStyle = '#3E2741';
+  ctx.fillStyle = '#6D5571';
   ctx.fill();
 
   // Add a very subtle inner ridge border to the table
