@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Worktrees are in-tree; a per-clone exclude protects only one machine.
+.claude/worktrees/
